@@ -1,0 +1,15 @@
+{
+  "name": "busao-df-web",
+  "version": "1.1.0",
+  "private": true,
+  "description": "PWA Busão DF com backend Node.js para contornar CORS e consultar dados em tempo real.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED"
+}

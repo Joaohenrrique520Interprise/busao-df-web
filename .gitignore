@@ -1,0 +1,17 @@
+node_modules/
+coverage/
+work/
+tmp/
+temp/
+*.log
+servidor-erro.log
+npm-debug.log*
+*.zip
+*.rar
+*.apk
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+Desktop.ini

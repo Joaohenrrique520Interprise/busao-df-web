@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: busao-df
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeploy: true
+    maxShutdownDelaySeconds: 30
