@@ -1,5 +1,7 @@
 # Busão DF Web 1.1
 
+Aplicação publicada: **https://busao-df.onrender.com**
+
 PWA com frontend HTML/CSS/JavaScript e backend Node.js puro. O backend serve a aplicação e executa `atender()` de `js/motor.js` para que o navegador consulte a Mobilibus sem bloqueio de CORS. Não há dependências npm de runtime.
 
 ## Recursos concluídos
@@ -10,7 +12,7 @@ PWA com frontend HTML/CSS/JavaScript e backend Node.js puro. O backend serve a a
 - Geolocalização nova e de alta precisão, sem aceitar posição armazenada pelo navegador.
 - Indicador de **GPS preciso**, **aproximação pela rede/IP** ou **local informado manualmente**.
 - Alternativas quando o GPS falha: busca manual e regiões do DF (Plano Piloto, Taguatinga, Riacho Fundo I, Ceilândia, Samambaia e Gama).
-- App Shell offline com Service Worker v4; respostas da API e localização nunca são armazenadas.
+- App Shell offline com Service Worker v5; respostas da API e localização nunca são armazenadas.
 - Encerramento gracioso de conexões HTTP e SSE.
 - Docker, Render, Railway, scripts Windows e testes automatizados.
 

@@ -117,6 +117,11 @@ export class Mapa {
     if (this.mapa.hasImage(id)) return;
     if (id === "parada") this.mapa.addImage(id, paradaImagem(), { pixelRatio: PROPORCAO });
     else if (id.startsWith("onibus-")) this.mapa.addImage(id, onibusImagem(COR_STATUS[id.slice(7)] ?? "#16a34a"), { pixelRatio: PROPORCAO });
+    else {
+      // Alguns estilos externos referenciam POIs que não existem no sprite atual.
+      // Um pixel transparente evita avisos repetidos sem interferir no mapa.
+      this.mapa.addImage(id, { width: 1, height: 1, data: new Uint8Array([0, 0, 0, 0]) });
+    }
   }
 
   definirTema(tema) { this.tema = tema; this.mapa.setStyle(ESTILOS[tema]); }   // as camadas voltam no "style.load"
