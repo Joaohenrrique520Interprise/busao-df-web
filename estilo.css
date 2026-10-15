@@ -35,15 +35,15 @@
 }
 
 :root[data-tema="escuro"] {
-  --bg: #0b1017;
-  --superficie: #131a24;
-  --superficie-2: #1a2330;
-  --superficie-3: #243042;
-  --linha: #263243;
-  --texto: #eef2f7;
-  --texto-2: #a8b3c2;
-  --texto-3: #7f8b9b;
-  --marca: #eef2f7;
+  --bg: #080d14;
+  --superficie: #111a26;
+  --superficie-2: #1b2736;
+  --superficie-3: #314158;
+  --linha: #3a4b61;
+  --texto: #f7f9fc;
+  --texto-2: #c8d1dd;
+  --texto-3: #9eabbc;
+  --marca: #f7f9fc;
   --acento: #ffb52e;
   --acento-texto: #ffc65c;
   --acento-suave: #2d2412;
@@ -81,6 +81,14 @@ button { cursor: pointer; }
 #mapa { position: fixed; inset: 0; background: var(--superficie-2); }
 .maplibregl-ctrl-attrib { font-size: 10px; }
 .maplibregl-ctrl-bottom-right { bottom: var(--folha-visivel, 0px); transition: bottom var(--dur) var(--curva); }
+:root[data-tema="escuro"] .maplibregl-ctrl-group,
+:root[data-tema="escuro"] .maplibregl-ctrl-attrib {
+  background: rgb(17 26 38 / .94);
+  color: var(--texto-2);
+  border: 1px solid var(--linha);
+}
+:root[data-tema="escuro"] .maplibregl-ctrl button { filter: invert(1) brightness(1.65); }
+:root[data-tema="escuro"] .maplibregl-ctrl-attrib a { color: #9fc3ff; }
 
 /* ------------------------------------------------------------ topo flutuante (celular) */
 .topo {

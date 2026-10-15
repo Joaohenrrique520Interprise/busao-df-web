@@ -51,6 +51,7 @@ test("Busão DF: módulos e integração HTTP", { timeout: 60_000 }, async (t) =
       "js/dados.js",
       "js/folha.js",
       "js/mapa.js",
+      "js/movimento.js",
       "js/motor.js",
     ]) {
       execFileSync(process.execPath, ["--check", path.join(RAIZ, arquivo)], { stdio: "pipe" });
@@ -62,6 +63,16 @@ test("Busão DF: módulos e integração HTTP", { timeout: 60_000 }, async (t) =
     assert.equal(typeof motor.atender, "function");
     assert.equal(typeof motor.ErroUsuario, "function");
     assert.equal(typeof motor.INTERVALO_S, "number");
+  });
+
+  await t.test("filtro de movimento rejeita salto impossível de GPS", async () => {
+    const { movimentoPlausivel, limiteDeslocamento, confirmaNovaArea } = await import("./js/movimento.js");
+    assert.equal(movimentoPlausivel(250, 15, 15_000), true);
+    assert.equal(movimentoPlausivel(1_500, 15, 15_000), false);
+    assert.ok(limiteDeslocamento(15, 15_000) < 500);
+    const distancia = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    assert.equal(confirmaNovaArea([100, 100], [110, 105], distancia, 20), true);
+    assert.equal(confirmaNovaArea([100, 100], [300, 300], distancia, 20), false);
   });
 
   const porta = await portaLivre();

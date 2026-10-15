@@ -2,6 +2,8 @@
 // andando pela rua entre uma leitura e outra; paradas, trajeto da linha e "eu".
 /* global maplibregl */
 
+import { confirmaNovaArea, limiteDeslocamento, movimentoPlausivel } from "./movimento.js?v=7";
+
 const ESTILOS = {
   claro: "https://tiles.openfreemap.org/styles/liberty",
   escuro: "https://tiles.openfreemap.org/styles/dark",
@@ -221,7 +223,7 @@ export class Mapa {
   }
 
   // ---------------------------------------------------------------- ônibus
-  /** Recebe a leitura nova. Cada ônibus anda pela rua (trilha do servidor) até a posição nova. */
+  /** Recebe a leitura nova. Filtra saltos de GPS e anima apenas deslocamentos fisicamente plausíveis. */
   veiculos(lista, destaque = null, intervaloS = 15) {
     const agora = performance.now();
     this.destaque = destaque;
@@ -232,15 +234,39 @@ export class Mapa {
       const novo = [v.lon, v.lat];
       const o = this.onibus.get(v.id);
       if (!o || reduzMovimento) {
-        this.onibus.set(v.id, { v, cam: caminho([novo]), t0: agora, pos: novo, rumo: v.rumo });
+        this.onibus.set(v.id, { v, cam: caminho([novo]), t0: agora, pos: novo, rumo: v.rumo,
+          ultimaLeituraMs: agora, saltoPendente: null });
         continue;
       }
+
+      const distanciaDireta = metrosEntre(o.pos, novo);
+      const tempoDesdeLeituraMs = agora - (o.ultimaLeituraMs ?? agora);
+      const limiteM = limiteDeslocamento(intervaloS, tempoDesdeLeituraMs);
+
+      if (!movimentoPlausivel(distanciaDireta, intervaloS, tempoDesdeLeituraMs)) {
+        if (!confirmaNovaArea(o.saltoPendente, novo, metrosEntre)) {
+          // Primeira leitura impossível: segura o ônibus onde está. Se a próxima leitura voltar,
+          // o usuário nunca vê a ida e volta causada pelo ponto de GPS incorreto.
+          Object.assign(o, { v, cam: caminho([o.pos]), t0: agora, ultimaLeituraMs: agora, saltoPendente: novo });
+          continue;
+        }
+
+        // Duas leituras consecutivas confirmaram a nova área. Reposiciona sem simular centenas
+        // de km/h; isso também cobre um veículo que reapareceu depois de ficar sem sinal.
+        Object.assign(o, { v, cam: caminho([novo]), t0: agora, pos: novo, rumo: v.rumo,
+          ultimaLeituraMs: agora, saltoPendente: null });
+        continue;
+      }
+
       const trilha = v.trilha?.length > 1 ? v.trilha : [novo];
       let pontos;
       if (trilha.length > 1 && metrosEntre(o.pos, trilha[0]) < 80) pontos = [o.pos, ...trilha];   // segue a rua
-      else if (metrosEntre(o.pos, novo) < 1500) pontos = [o.pos, novo];
-      else pontos = [novo];                                                                      // salto: teletransporta
-      Object.assign(o, { v, cam: caminho(pontos), t0: agora });
+      else pontos = [o.pos, novo];
+
+      // Um encaixe ruim no traçado pode montar uma volta enorme mesmo com início e fim próximos.
+      // Nesse caso, a linha reta curta é visualmente mais fiel do que acelerar pela rota inteira.
+      if (caminho(pontos).total > limiteM * 1.15) pontos = [o.pos, novo];
+      Object.assign(o, { v, cam: caminho(pontos), t0: agora, ultimaLeituraMs: agora, saltoPendente: null });
     }
     for (const id of [...this.onibus.keys()]) if (!vistos.has(id)) this.onibus.delete(id);
     this._animar();

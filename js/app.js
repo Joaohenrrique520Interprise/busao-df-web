@@ -4,7 +4,7 @@ import {
   html, local, metros, nativo, pedir, segundosAte, selo, sincronizar,
 } from "./dados.js";
 import { Folha } from "./folha.js";
-import { Mapa } from "./mapa.js";
+import { Mapa } from "./mapa.js?v=7";
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
