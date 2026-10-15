@@ -12,7 +12,8 @@ PWA com frontend HTML/CSS/JavaScript e backend Node.js puro. O backend serve a a
 - Geolocalização nova e de alta precisão, sem aceitar posição armazenada pelo navegador.
 - Indicador de **GPS preciso**, **aproximação pela rede/IP** ou **local informado manualmente**.
 - Alternativas quando o GPS falha: busca manual e regiões do DF (Plano Piloto, Taguatinga, Riacho Fundo I, Ceilândia, Samambaia e Gama).
-- App Shell offline com Service Worker v5; respostas da API e localização nunca são armazenadas.
+- App Shell offline com Service Worker v6; respostas da API e localização nunca são armazenadas.
+- Legenda acessível explicando as cores de situação dos ônibus no mapa.
 - Encerramento gracioso de conexões HTTP e SSE.
 - Docker, Render, Railway, scripts Windows e testes automatizados.
 

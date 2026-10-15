@@ -383,6 +383,18 @@ function indicadorPosicao() {
   return h`<span class="origem-posicao manual">${ICONE.pino} ${p.origem === "regiao" ? "Região selecionada" : "Local informado manualmente"}</span>`;
 }
 
+const legendaCoresOnibus = () => h`
+  <details class="legenda-onibus">
+    <summary>O que significam as cores dos ônibus?</summary>
+    <div class="legenda-itens">
+      <span><i class="cor verde" aria-hidden="true"></i><b>Verde</b> — no horário</span>
+      <span><i class="cor laranja" aria-hidden="true"></i><b>Laranja/amarelo</b> — atrasado 3 min ou mais</span>
+      <span><i class="cor azul" aria-hidden="true"></i><b>Azul</b> — adiantado 2 min ou mais</span>
+      <span><i class="cor cinza" aria-hidden="true"></i><b>Cinza</b> — GPS sem atualização há mais de 2 min</span>
+    </div>
+    <p>As cores das etiquetas com o número identificam a linha. Os quadrados amarelos no mapa são paradas.</p>
+  </details>`;
+
 // ---------------------------------------------------------------- início
 function telaInicio() {
   if (!estado.pos) {
@@ -408,6 +420,7 @@ function telaInicio() {
     <p class="sub">Paradas a poucos passos e o que está chegando.</p>
     ${indicadorPosicao()}
     ${deEndereco && estado.geo !== "negado" ? h`<button class="chip sem-chip" data-acao="usar-gps" style="margin-top:10px">${ICONE.mira} Usar minha localização</button>` : ""}
+    ${legendaCoresOnibus()}
     ${blocoAtalhos()}
     <h3>Paradas perto</h3>
     <div data-parte="perto">${partePerto()}</div>

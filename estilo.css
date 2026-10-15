@@ -302,6 +302,20 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: v
 .origem-posicao.precisa { color: var(--v-ok); }
 .origem-posicao.aproximada { color: var(--fantasma); }
 
+/* legenda compacta dos ônibus no mapa */
+.legenda-onibus { margin-top: 10px; border: 1px solid var(--linha); border-radius: 13px; background: var(--superficie-2); }
+.legenda-onibus summary { padding: 11px 13px; cursor: pointer; color: var(--texto); font-size: 13px; font-weight: 800; }
+.legenda-onibus[open] summary { border-bottom: 1px solid var(--linha); }
+.legenda-itens { display: grid; gap: 8px; padding: 12px 13px 6px; }
+.legenda-itens span { display: flex; align-items: center; gap: 5px; color: var(--texto-2); font-size: 12px; line-height: 1.35; }
+.legenda-itens b { color: var(--texto); }
+.legenda-itens .cor { width: 12px; height: 12px; border: 2px solid #fff; border-radius: 4px; box-shadow: 0 1px 3px rgb(0 0 0 / .25); flex: none; }
+.legenda-itens .verde { background: #16a34a; }
+.legenda-itens .laranja { background: #ea7a0c; }
+.legenda-itens .azul { background: #2563eb; }
+.legenda-itens .cinza { background: #8b939e; }
+.legenda-onibus p { margin: 5px 13px 12px; color: var(--texto-3); font-size: 11px; line-height: 1.4; }
+
 /* rota */
 .campo { display: flex; align-items: center; gap: 10px; background: var(--superficie-2); border-radius: 14px; padding: 0 12px; height: 52px; margin-bottom: 8px; }
 .campo label { font-size: 12px; font-weight: 800; color: var(--texto-3); width: 34px; text-transform: uppercase; letter-spacing: .05em; }
