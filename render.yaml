@@ -7,4 +7,3 @@ services:
     dockerContext: .
     healthCheckPath: /healthz
     autoDeploy: true
-    maxShutdownDelaySeconds: 30

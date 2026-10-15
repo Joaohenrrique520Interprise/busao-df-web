@@ -111,7 +111,7 @@ Nunca envie `.env`, senhas ou tokens. Consulte também o [guia oficial do GitHub
 3. Confirme runtime **Docker**, plano **Free** e health check `/healthz`.
 4. Crie o serviço e abra o endereço `https://NOME.onrender.com`.
 
-O `render.yaml` já define Docker, plano Free, deploy automático e encerramento gracioso. O [Render Free](https://render.com/docs/free) hiberna após 15 minutos sem tráfego; a URL permanece a mesma, mas o primeiro acesso pode ter cold start.
+O `render.yaml` já define Docker, plano Free, deploy automático e health check. O [Render Free](https://render.com/docs/free) hiberna após 15 minutos sem tráfego; a URL permanece a mesma, mas o primeiro acesso pode ter cold start.
 
 ## Deploy no Railway
 
