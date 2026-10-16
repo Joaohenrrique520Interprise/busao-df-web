@@ -1,15 +1,15 @@
 // App Shell offline. Localização e respostas /api/* nunca entram no cache.
 const PREFIXO_CACHE = "busao-web-";
-const VERSAO = `${PREFIXO_CACHE}v8`;
+const VERSAO = `${PREFIXO_CACHE}v9`;
 const CASCA = [
   "/",
   "/index.html",
-  "/estilo.css?v=8",
-  "/js/app.js?v=8",
+  "/estilo.css?v=9",
+  "/js/app.js?v=9",
   "/js/dados.js",
-  "/js/mapa.js?v=8",
+  "/js/mapa.js?v=9",
   "/js/movimento.js?v=7",
-  "/js/folha.js",
+  "/js/folha.js?v=9",
   "/vendor/maplibre-gl.js?v=6",
   "/vendor/maplibre-gl.css?v=6",
   "/manifest.webmanifest",

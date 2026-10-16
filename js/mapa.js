@@ -26,6 +26,8 @@ function onibusImagem(cor) {
   g.fillStyle = cor; g.strokeStyle = "#fff"; g.lineWidth = 2;
   g.beginPath(); g.roundRect(4, 3, 18, 46, 5); g.fill(); g.stroke();
   g.shadowColor = "transparent";
+  g.fillStyle = "#fff";                                      // seta: a ponta é a frente do veículo
+  g.beginPath(); g.moveTo(13, 0); g.lineTo(18, 7); g.lineTo(8, 7); g.closePath(); g.fill();
   g.fillStyle = "#1b2430";                                    // espelhos
   g.fillRect(1.5, 7, 3, 4); g.fillRect(21.5, 7, 3, 4);
   g.fillStyle = "rgba(15,29,46,.92)";                         // para-brisa
@@ -83,6 +85,7 @@ export class Mapa {
     this.aoClicarOnibus = aoClicarOnibus;
     this.aoClicarParada = aoClicarParada;
     this.tema = tema;
+    this.modo3d = true;
     this.onibus = new Map();       // id -> {v, cam, t0, dur, pos, rumo}
     this.destaque = null;
     this.duracaoMs = 13000;
@@ -128,12 +131,33 @@ export class Mapa {
 
   definirTema(tema) { this.tema = tema; this.mapa.setStyle(ESTILOS[tema]); }   // as camadas voltam no "style.load"
 
+  alternar3d(forcar) {
+    this.modo3d = typeof forcar === "boolean" ? forcar : !this.modo3d;
+    if (this.mapa.getLayer("predios-3d")) this.mapa.setLayoutProperty("predios-3d", "visibility", this.modo3d ? "visible" : "none");
+    this.mapa.easeTo({ pitch: this.modo3d && this.mapa.getZoom() >= 15 ? 40 : 0, duration: reduzMovimento ? 0 : 650 });
+    return this.modo3d;
+  }
+
   _camadas() {
     const m = this.mapa;
     const escuro = this.tema === "escuro";
     // O trajeto vai por baixo dos nomes de rua; ônibus e paradas por cima de tudo.
     const primeiroRotulo = m.getStyle().layers.find((l) => l.type === "symbol")?.id;
     for (const fonte of ["trajeto", "paradas", "onibus"]) m.addSource(fonte, { type: "geojson", data: this.dados[fonte] });
+
+    // OpenFreeMap publica construções na fonte OpenMapTiles. A camada só nasce em
+    // zoom alto para poupar GPU e bateria em visões gerais.
+    if (m.getSource("openmaptiles")) {
+      m.addLayer({ id: "predios-3d", type: "fill-extrusion", source: "openmaptiles", "source-layer": "building",
+        minzoom: 15.5, layout: { visibility: this.modo3d ? "visible" : "none" },
+        paint: {
+          "fill-extrusion-color": escuro ? "#26374a" : "#d7d1c5",
+          "fill-extrusion-height": ["coalesce", ["to-number", ["get", "render_height"]], ["to-number", ["get", "height"]],
+            ["*", ["coalesce", ["to-number", ["get", "building:levels"]], 3], 3], 9],
+          "fill-extrusion-base": ["coalesce", ["to-number", ["get", "render_min_height"]], ["to-number", ["get", "min_height"]], 0],
+          "fill-extrusion-opacity": escuro ? 0.72 : 0.64, "fill-extrusion-vertical-gradient": true,
+        } }, primeiroRotulo);
+    }
 
     m.addLayer({ id: "trajeto-borda", type: "line", source: "trajeto", layout: { "line-cap": "round", "line-join": "round" },
       paint: { "line-color": "#ffffff", "line-width": ["interpolate", ["linear"], ["zoom"], 10, 7, 16, 15], "line-opacity": escuro ? 0.3 : 0.95 } }, primeiroRotulo);
@@ -144,6 +168,9 @@ export class Mapa {
       layout: { "icon-image": "parada", "icon-size": ["interpolate", ["linear"], ["zoom"], 13.5, 0.6, 17, 1],
         "icon-allow-overlap": true, "icon-ignore-placement": true } });
 
+    m.addLayer({ id: "onibus-vivo", type: "circle", source: "onibus",
+      paint: { "circle-radius": 13, "circle-color": ["get", "cor"], "circle-opacity": 0.17, "circle-pitch-alignment": "map",
+        "circle-stroke-width": 1.5, "circle-stroke-color": "#ffffff", "circle-stroke-opacity": 0.35 } });
     m.addLayer({ id: "onibus-pulso", type: "circle", source: "onibus", filter: ["==", ["get", "destaque"], true],
       paint: { "circle-radius": 18, "circle-color": ["get", "cor"], "circle-opacity": 0.3, "circle-pitch-alignment": "map" } });
     m.addLayer({ id: "onibus", type: "symbol", source: "onibus",
@@ -202,7 +229,8 @@ export class Mapa {
     return { lat: c.lat, lon: c.lng, raio: Math.round(metrosEntre([c.lng, c.lat], [canto.lng, canto.lat])), zoom: this.mapa.getZoom() };
   }
 
-  centralizar(pos, zoom = 15) { this.mapa.easeTo({ center: [pos.lon, pos.lat], zoom, duration: reduzMovimento ? 0 : 900 }); }
+  centralizar(pos, zoom = 15) { this.mapa.easeTo({ center: [pos.lon, pos.lat], zoom,
+    pitch: this.modo3d && zoom >= 15 ? 40 : 0, duration: reduzMovimento ? 0 : 900 }); }
 
   enquadrar(coords) {
     if (!coords.length) return;
@@ -297,6 +325,11 @@ export class Mapa {
         rotulo: `${o.v.linha}${o.v.acessivel ? " ♿" : ""}${o.v.ar_condicionado ? " ❄" : ""}`,
         status: o.v.status, cor: COR_STATUS[o.v.status], rumo: o.rumo, destaque: o.v.id === this.destaque },
     })) });
+    if (this.mapa.getLayer("onibus-vivo") && !reduzMovimento) {
+      const faseViva = (t % 2200) / 2200;
+      this.mapa.setPaintProperty("onibus-vivo", "circle-radius", 10 + faseViva * 12);
+      this.mapa.setPaintProperty("onibus-vivo", "circle-opacity", 0.2 * (1 - faseViva));
+    }
     if (this.destaque && this.mapa.getLayer("onibus-pulso") && !reduzMovimento) {
       const fase = (t % 1800) / 1800;                         // pulso do ônibus que chega primeiro
       this.mapa.setPaintProperty("onibus-pulso", "circle-radius", 14 + fase * 22);

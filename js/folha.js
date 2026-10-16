@@ -2,6 +2,24 @@
 
 const desktop = matchMedia("(min-width: 900px)");
 
+/** Abre a imagem da parada sem tirar o passageiro do contexto atual. */
+export function abrirImagemTelaCheia(src, alt, legenda = "") {
+  const dialogo = document.createElement("dialog");
+  dialogo.className = "foto-modal";
+  dialogo.setAttribute("aria-label", alt);
+  const botao = document.createElement("button"), figura = document.createElement("figure");
+  const imagem = document.createElement("img"), descricao = document.createElement("figcaption");
+  botao.type = "button"; botao.className = "foto-fechar"; botao.setAttribute("aria-label", "Fechar imagem"); botao.textContent = "✕";
+  imagem.src = src; imagem.alt = alt; descricao.textContent = legenda;
+  figura.append(imagem, descricao); dialogo.append(botao, figura);
+  const fechar = () => dialogo.close();
+  botao.addEventListener("click", fechar);
+  dialogo.addEventListener("click", (e) => { if (e.target === dialogo) fechar(); });
+  dialogo.addEventListener("close", () => dialogo.remove(), { once: true });
+  document.body.append(dialogo);
+  dialogo.showModal();
+}
+
 export class Folha {
   constructor(el, aoMudar) {
     this.el = el;

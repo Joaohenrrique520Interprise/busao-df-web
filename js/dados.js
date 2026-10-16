@@ -58,13 +58,13 @@ export async function pedir(caminho, params = {}) {
  */
 export function aoVivo(params, { dados, erro, estado, config }) {
   const consulta = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null));
-  let fechado = false, fonte = null, temporizador = null, vigia = null, intervaloMs = 15000;
+  let fechado = false, fonte = null, temporizador = null, vigia = null, intervaloMs = 15000, modoConsulta = false;
   estado("conectando");
 
   function consultar() {
     return pedir("/api/agora", consulta).then((d) => {
       if (fechado) return;
-      estado("ok");
+      estado(modoConsulta ? "polling" : "ok");
       dados(d);
     }).catch(() => {
       if (fechado) return;
@@ -74,6 +74,8 @@ export function aoVivo(params, { dados, erro, estado, config }) {
   function porConsulta() {
     fonte?.close();
     fonte = null;
+    modoConsulta = true;
+    estado("polling");
     if (!fechado && !temporizador) consultar();
   }
 

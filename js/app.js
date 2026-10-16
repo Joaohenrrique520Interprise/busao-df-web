@@ -3,8 +3,8 @@ import {
   CONFIANCA, ErroApi, aoVivo, atrasoTexto, bruto, chipLinha, decodificar, distancia, faltaCurta, h, horaCurta,
   html, local, metros, nativo, pedir, segundosAte, selo, sincronizar,
 } from "./dados.js";
-import { Folha } from "./folha.js";
-import { Mapa } from "./mapa.js?v=8";
+import { Folha, abrirImagemTelaCheia } from "./folha.js?v=9";
+import { Mapa } from "./mapa.js?v=9";
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -29,6 +29,7 @@ const estado = {
   sentido: null,             // trip_id escolhido
   parada: null,              // parada aberta {id, nome, lat, lon}
   chegadasParada: null,
+  fotoParada: null,
   ultimo: null,              // último pacote ao vivo
   intervaloS: 15,
   conexao: "parado",
@@ -54,6 +55,15 @@ document.addEventListener("click", (e) => {
   mapa.definirTema(tema());
 });
 pintarBotoesTema();
+
+document.addEventListener("click", (e) => {
+  const botao = e.target.closest('[data-acao="mapa-3d"]');
+  if (!botao) return;
+  const ativo = mapa.alternar3d();
+  botao.setAttribute("aria-pressed", String(ativo));
+  botao.title = ativo ? "Voltar para mapa 2D" : "Ativar prédios em 3D";
+  botao.querySelector("span").textContent = ativo ? "3D" : "2D";
+});
 
 // ================================================================ mapa e painel
 const mapa = new Mapa($("#mapa"), tema(), {
@@ -196,7 +206,7 @@ function pintarStatus() {
   let c = estado.conexao, texto;
   if (!navigator.onLine) c = "offline";
   if (c === "ok" && idade > estado.intervaloS * 2 + 10) c = "conectando";
-  texto = { ok: `Ao vivo · há ${idade} s`, conectando: "Reconectando…", erro: "DF no Ponto sem resposta", offline: "Sem internet", parado: "" }[c];
+  texto = { ok: `Ao vivo · ${idade} s`, polling: `Polling · ${idade} s`, conectando: "Conectando…", erro: "Dados indisponíveis", offline: "Offline", parado: "" }[c];
   el.dataset.estado = c;
   el.classList.toggle("oculto", c === "parado");
   el.lastElementChild.textContent = texto;
@@ -291,12 +301,20 @@ async function abrirParada(p) {
   fecharSugestoes();
   estado.parada = p;
   estado.chegadasParada = null;
+  estado.fotoParada = null;
   estado.linha = null;
   irPara("parada");
   mapa.minhaParada(p);
   mapa.centralizar(p, 16);
   conectar();
-  await carregarChegadasParada();
+  await Promise.allSettled([carregarChegadasParada(), carregarFotoParada()]);
+}
+
+async function carregarFotoParada() {
+  const p = estado.parada;
+  try { estado.fotoParada = await pedir("/api/paradas/imagem", { lat: p.lat, lon: p.lon }); }
+  catch { estado.fotoParada = { disponivel: false }; }
+  if (estado.parada === p && estado.vista === "parada") trocarParte("foto-parada", parteFotoParada());
 }
 
 async function carregarChegadasParada() {
@@ -594,8 +612,19 @@ function telaParada() {
     <button class="voltar" data-acao="voltar">${ICONE.voltar} Voltar</button>
     <h2>${p.nome}</h2>
     <p class="sub">${dist != null ? `${distancia(dist)} de ${estado.pos.origem === "gps" ? "você" : estado.pos.rotulo}` : "Parada de ônibus"}</p>
+    <div data-parte="foto-parada">${parteFotoParada()}</div>
     <h3>Próximas chegadas</h3>
     <div data-parte="chegadas">${parteChegadasParada()}</div>`;
+}
+
+function parteFotoParada() {
+  const foto = estado.fotoParada;
+  if (!foto) return h`<div class="foto-parada esqueleto" role="status" aria-label="Carregando imagem da parada"></div>`;
+  if (!foto.disponivel) return h`<div class="foto-parada fallback"><span>${ICONE.pino}</span><div><b>Referência visual indisponível</b><small>Use o nome e o ponto destacado no mapa.</small></div></div>`;
+  return h`<figure class="foto-parada carregada"><button type="button" data-acao="ampliar-foto" aria-label="Ampliar imagem do entorno da parada">
+    <img src="${foto.url}" alt="${foto.tipo === "foto" ? "Foto" : "Imagem de satélite"} do entorno de ${estado.parada.nome}" loading="eager"
+      onerror="this.closest('figure').classList.add('falhou')"><span class="foto-ampliar">⛶ Ampliar</span></button>
+    <figcaption>${foto.tipo === "foto" ? "Foto próxima" : "Visão de satélite"} · ${foto.credito}${foto.licenca ? ` · ${foto.licenca}` : ""}</figcaption></figure>`;
 }
 
 function parteChegadasParada() {
@@ -692,6 +721,8 @@ conteudo.addEventListener("click", (e) => {
   const a = b.dataset.acao;
   if (a === "abrir-linha") abrirLinha(b.dataset.route, b.dataset.trip);
   else if (a === "abrir-parada") abrirParada({ id: b.dataset.id, nome: b.dataset.nome, lat: +b.dataset.lat, lon: +b.dataset.lon });
+  else if (a === "ampliar-foto" && estado.fotoParada?.url) abrirImagemTelaCheia(estado.fotoParada.url,
+    `Entorno da parada ${estado.parada.nome}`, `${estado.fotoParada.credito}${estado.fotoParada.licenca ? ` · ${estado.fotoParada.licenca}` : ""}`);
   else if (a === "voltar") { estado.linha = null; estado.parada = null; irPara("inicio"); conectar(); if (estado.pos) mapa.centralizar(estado.pos); }
   else if (a === "tentar") { estado.vista === "parada" ? carregarChegadasParada() : estado.vista === "rota" ? calcularRota() : render(); }
   else if (a === "tentar-geo") iniciarGeo();

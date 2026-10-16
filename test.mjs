@@ -65,6 +65,19 @@ test("Busão DF: módulos e integração HTTP", { timeout: 60_000 }, async (t) =
     assert.equal(typeof motor.INTERVALO_S, "number");
     assert.equal(typeof motor.metadadosConforto, "function");
     assert.equal(typeof motor.tipoIntegracao, "function");
+    assert.equal(typeof motor.imagemParada, "function");
+  });
+
+  await t.test("imagem da parada usa fallback de satélite sem chave", async () => {
+    const motor = await import("./js/motor.js");
+    const anterior = motor.buscarHttp;
+    motor.usarHttp(async () => ({ ok: true, json: async () => ({ query: { pages: {} } }) }));
+    try {
+      const imagem = await motor.imagemParada(-15.7939, -47.8828);
+      assert.equal(imagem.tipo, "satelite");
+      assert.match(imagem.url, /World_Imagery/);
+      assert.match(imagem.url, /bbox=/);
+    } finally { motor.usarHttp(anterior); }
   });
 
   await t.test("normaliza acessibilidade, ar-condicionado e integrações", async () => {

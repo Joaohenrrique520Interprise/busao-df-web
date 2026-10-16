@@ -6,6 +6,10 @@ PWA com frontend HTML/CSS/JavaScript e backend Node.js puro. O backend serve a a
 
 ## Recursos concluídos
 
+- Foto pública georreferenciada ou contexto de satélite ao abrir uma parada, com expansão em tela cheia.
+- Prédios 3D a partir do OpenMapTiles em zoom alto e alternância rápida 3D/2D.
+- Ônibus com rumo visual, pulso de tempo real e microindicadores de acessibilidade e climatização.
+- HUD em vidro fosco e indicador compacto de conexão ao vivo/polling.
 - API JSON em `/api/*`, com CORS e erros padronizados como `{ "detail": "..." }`.
 - Tempo real por SSE em `/api/ao-vivo`, reconexão em 5 segundos e heartbeat a cada 15 segundos.
 - Health check em `/healthz`, incluindo o uptime do processo.

@@ -6,6 +6,7 @@
 const API = "https://mobilibus.com/api";
 const OTP = "https://otp.mobilibus.com/FY7J-lwk85QGbn/otp/routers/default";
 const NOMINATIM = "https://nominatim.openstreetmap.org/search";
+const WIKIMEDIA = "https://commons.wikimedia.org/w/api.php";
 const PROJETO = "3c189";
 const CAIXA_DF = "-48.30,-15.45,-47.30,-16.06";
 const FUSO_MS = -3 * 3600 * 1000;           // Brasília, sem horário de verão
@@ -134,6 +135,35 @@ export async function partidas(stopIds) {
   return viagens;
 }
 export const buscarParadas = (termo) => obter(`${API}/search-stops`, { project_hash: PROJETO, search: termo }, 24 * 3600);
+
+/** Procura foto pública próxima e usa satélite estático quando ela não existe. */
+export async function imagemParada(lat, lon) {
+  const latitude = Number(lat), longitude = Number(lon);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) throw new ErroUsuario("Coordenadas da parada inválidas.");
+  try {
+    const dados = await obter(WIKIMEDIA, {
+      action: "query", format: "json", origin: "*", generator: "geosearch", ggsnamespace: 6,
+      ggsprimary: "all", ggsradius: 350, ggslimit: 8, ggscoord: `${latitude}|${longitude}`,
+      prop: "imageinfo", iiprop: "url|extmetadata", iiurlwidth: 960,
+    }, 24 * 3600);
+    const paginas = Object.values(dados.query?.pages ?? {}).filter((p) => p.imageinfo?.[0]?.thumburl);
+    const foto = paginas.find((p) => !/map|logo|flag|icon|symbol|seal/i.test(p.title)) ?? paginas[0];
+    if (foto) {
+      const info = foto.imageinfo[0], meta = info.extmetadata ?? {};
+      return { disponivel: true, tipo: "foto", url: info.thumburl, link: info.descriptionurl,
+        credito: meta.Artist?.value?.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() || "Wikimedia Commons",
+        licenca: meta.LicenseShortName?.value || "Wikimedia Commons" };
+    }
+  } catch { /* segue para o fallback sem quebrar o painel */ }
+
+  const deltaLon = 0.00145 / Math.max(Math.cos(latitude * Math.PI / 180), 0.2), deltaLat = 0.00145;
+  const bbox = [longitude - deltaLon, latitude - deltaLat, longitude + deltaLon, latitude + deltaLat].join(",");
+  return { disponivel: true, tipo: "satelite",
+    url: montarUrl("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export", {
+      bbox, bboxSR: 4326, imageSR: 4326, size: "960,540", format: "jpg", f: "image",
+    }), link: `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=19/${latitude}/${longitude}`,
+    credito: "Imagem de satélite Esri World Imagery", licenca: "Contexto visual" };
+}
 
 const idsParada = new Map();
 /** O planejador (OTP) usa outros IDs; casa a parada pelo nome + coordenada. */
@@ -503,6 +533,7 @@ const ROTAS = [
     if (!id) throw new ErroUsuario("Esta parada não tem previsão no DF no Ponto.");
     return { id, nome: q.nome, lat: num(q.lat), lon: num(q.lon), dist_m: null };
   }],
+  [/^\/api\/paradas\/imagem$/, async (_, q) => imagemParada(num(q.lat), num(q.lon))],
   [/^\/api\/paradas\/([^/]+)\/chegadas$/, async ([, id]) => {
     const refMs = Date.now();
     return (await partidas([id])).map((t) => [t, proximas(t.departures, refMs).slice(0, 3)]).filter(([, p]) => p.length)

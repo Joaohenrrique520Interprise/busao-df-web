@@ -2,6 +2,14 @@
 
 Documento de referência do estado do projeto verificado em **15/10/2026**.
 
+## Atualização visual v9
+
+A tela de parada consulta `/api/paradas/imagem` por latitude e longitude. O motor tenta primeiro uma fotografia georreferenciada do Wikimedia Commons em um raio de 350 metros e usa uma imagem estática do Esri World Imagery como fallback sem chave. A interface possui esqueleto de carregamento, referência textual em caso de falha e visualização ampliada em `dialog`.
+
+O mapa adiciona a camada `predios-3d` sobre `openmaptiles/building` a partir do zoom 15,5, usando `render_height`, `height` ou quantidade de pavimentos como altura. O botão flutuante alterna 3D/2D e aproximações de paradas usam inclinação de 40 graus. Os ônibus mantêm interpolação sobre o traçado, mostram a frente por seta, pulso ao vivo e os indicadores ♿/❄ no rótulo.
+
+O HUD, a busca e a folha inferior usam transparência, desfoque de 14 px, bordas suaves e sombras adaptadas aos temas claro e escuro. O estado diferencia SSE ao vivo, polling, reconexão e offline.
+
 ## 1. Resumo executivo
 
 O Busão DF é uma aplicação web progressiva (PWA) para consultar linhas, paradas,
