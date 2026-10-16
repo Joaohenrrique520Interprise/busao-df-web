@@ -214,6 +214,23 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: v
 .selo-tabela { color: var(--tabela); background: var(--tabela-fundo); }
 .selo-fantasma { color: var(--fantasma); background: var(--fantasma-fundo); }
 .selo-gps .onda { animation: onda 1.6s ease-out infinite; transform-origin: center; }
+.selos-linha { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.selo-recurso {
+  display: inline-flex; align-items: center; gap: 3px; min-height: 20px; padding: 2px 7px; border-radius: 999px;
+  font-size: 10px; line-height: 1; font-weight: 800; letter-spacing: .01em; white-space: nowrap;
+  color: var(--texto-2); background: var(--superficie-3); border: 1px solid var(--linha);
+}
+.selo-recurso.acessivel { color: #08775d; background: #e6f7f1; border-color: #b4e4d6; }
+.selo-recurso.ar { color: #1768a5; background: #e8f4ff; border-color: #bdddf4; }
+[data-tema="escuro"] .selo-recurso.acessivel { color: #82ddc2; background: #12382f; border-color: #246454; }
+[data-tema="escuro"] .selo-recurso.ar { color: #91cfff; background: #142f46; border-color: #28577a; }
+.badge-integracao {
+  display: inline-flex; align-items: center; margin: 2px 2px 2px 5px; padding: 3px 7px; border-radius: 7px;
+  font-size: 10px; line-height: 1; font-weight: 900; white-space: nowrap; vertical-align: middle;
+}
+.badge-integracao.metro { color: #fff; background: #e55300; }
+.badge-integracao.brt { color: #fff; background: #7b2cbf; }
+.proximidade { font-size: 12px; color: var(--texto-3); }
 
 /* ------------------------------------------------------------ destaque "passa na sua parada" */
 .heroi {
@@ -280,6 +297,9 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: v
 
 .aviso-linha { display: flex; gap: 8px; align-items: center; margin: 12px 0 4px; }
 .aviso-linha select { height: 48px; border-radius: 14px; border: 1px solid var(--linha); background: var(--superficie); padding: 0 10px; font-weight: 700; }
+.alertas-opcoes { display: grid; gap: 7px; margin: 12px 0 4px; }
+.alertas-opcoes .aviso-linha { margin: 0; }
+.alertas-opcoes .aviso-linha .botao { flex: 1; }
 
 /* lista de paradas / chegadas */
 .parada-cartao header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }

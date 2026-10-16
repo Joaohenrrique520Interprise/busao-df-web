@@ -63,6 +63,20 @@ test("Busão DF: módulos e integração HTTP", { timeout: 60_000 }, async (t) =
     assert.equal(typeof motor.atender, "function");
     assert.equal(typeof motor.ErroUsuario, "function");
     assert.equal(typeof motor.INTERVALO_S, "number");
+    assert.equal(typeof motor.metadadosConforto, "function");
+    assert.equal(typeof motor.tipoIntegracao, "function");
+  });
+
+  await t.test("normaliza acessibilidade, ar-condicionado e integrações", async () => {
+    const { metadadosConforto, tipoIntegracao } = await import("./js/motor.js");
+    assert.deepEqual(metadadosConforto({ wa: true, ac: true }), { acessivel: true, ar_condicionado: true });
+    assert.deepEqual(metadadosConforto({ wheelchair_accessible: 1, airConditioned: "yes" }),
+      { acessivel: true, ar_condicionado: true });
+    assert.deepEqual(metadadosConforto({ features: ["rampa", "ar-condicionado"] }),
+      { acessivel: true, ar_condicionado: true });
+    assert.deepEqual(tipoIntegracao("Estação Central do Metrô"), { tipo: "metro", rotulo: "Metrô-DF" });
+    assert.deepEqual(tipoIntegracao("Terminal BRT Santa Maria"), { tipo: "brt", rotulo: "BRT" });
+    assert.equal(tipoIntegracao("Parada QN 12"), null);
   });
 
   await t.test("filtro de movimento rejeita salto impossível de GPS", async () => {
@@ -112,6 +126,8 @@ test("Busão DF: módulos e integração HTTP", { timeout: 60_000 }, async (t) =
       assert.ok(Array.isArray(corpo));
       assert.ok(corpo.length > 0, "A Mobilibus não retornou nenhuma linha para 0.809");
       assert.equal(corpo[0].numero, "0.809");
+      assert.equal(typeof corpo[0].acessivel, "boolean");
+      assert.equal(typeof corpo[0].ar_condicionado, "boolean");
     });
 
     await t.test("GET /api/ao-vivo inicia um stream SSE", async () => {

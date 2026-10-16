@@ -17,6 +17,46 @@ export const INTERVALO_S = 15;
 
 export class ErroUsuario extends Error {}
 
+const verdadeiro = (valor) => valor === true || valor === 1 || ["1", "true", "sim", "yes", "y"].includes(String(valor).toLowerCase());
+
+/** Normaliza os campos de conforto que a Mobilibus expõe em viagens e partidas. */
+export function metadadosConforto(...fontes) {
+  const objetos = fontes.filter(Boolean);
+  const texto = objetos.flatMap((o) => [o.features, o.feature, o.equipment, o.equipments, o.amenities, o.description, o.desc])
+    .flat().filter(Boolean).join(" ").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+  const acessivel = objetos.some((o) => [o.wa, o.wheelchairAccessible, o.wheelchair_accessible, o.accessible,
+    o.accessibility, o.elevator, o.hasElevator, o.ramp, o.hasRamp].some(verdadeiro))
+    || /cadeir|acess|elevador|rampa|wheelchair/.test(texto);
+  const arCondicionado = objetos.some((o) => [o.ac, o.airConditioned, o.air_conditioned, o.airConditioning,
+    o.hasAirConditioning, o.arCondicionado, o.climatizado].some(verdadeiro))
+    || /ar[- ]?condicionado|climatiz|air[- ]?condition/.test(texto);
+  return { acessivel, ar_condicionado: arCondicionado };
+}
+
+const ESTACOES_METRO = [
+  "central", "galeria", "102 sul", "108 sul", "112 sul", "114 sul", "asa sul", "shopping",
+  "feira", "guara", "arniqueiras", "aguas claras", "concessionarias", "praca do relogio",
+  "taguatinga sul", "furnas", "samambaia sul", "terminal samambaia", "ceilandia sul", "guariroba",
+  "ceilandia centro", "ceilandia norte", "terminal ceilandia",
+];
+const ESTACOES_BRT = [
+  "brt", "terminal gama", "terminal santa maria", "terminal park way", "park way", "catetinho",
+  "vargem bonita", "granja do ipe", "santos dumont", "periquito", "flor do cerrado",
+  "terminal ceilandia", "terminal sol nascente", "terminal p sul", "terminal p norte",
+];
+
+/** Identifica estações e terminais onde a rota permite integração estrutural. */
+export function tipoIntegracao(nome = "") {
+  const n = normalizar(nome);
+  if (/\bmetro\b/.test(n) || ((n.includes("estacao") || n.includes("terminal")) && ESTACOES_METRO.some((x) => n.includes(x)))) {
+    return { tipo: "metro", rotulo: "Metrô-DF" };
+  }
+  if (ESTACOES_BRT.some((x) => n.includes(x)) && (n.includes("estacao") || n.includes("terminal") || n.includes("brt"))) {
+    return { tipo: "brt", rotulo: "BRT" };
+  }
+  return null;
+}
+
 // ================================================================ HTTP com cache
 const cache = new Map();          // url -> {expira, valor}
 let ativos = 0;
@@ -288,17 +328,24 @@ function encaixar(v, trip, tr) {
 }
 
 // ================================================================ montagem das respostas (como em web/app.py)
-function passagem(ms, p, refMs) {
+function passagem(ms, p, refMs, paradaSeq = null, fonte = null) {
   const vivo = p.vehicleId;
+  const conforto = metadadosConforto(fonte, p);
+  const paradasRestantes = vivo && Number.isFinite(Number(paradaSeq)) && Number.isFinite(Number(p.stopSequence))
+    ? Math.max(0, Number(paradaSeq) - Number(p.stopSequence)) : null;
   return { hora: isoBrasilia(ms), minutos: Math.max(faltam(ms, refMs), 0), confianca: confianca(p, refMs),
-    veiculo: vivo || null, gps_idade_s: vivo ? (p.positionAge ?? null) : null };
+    veiculo: vivo || null, gps_idade_s: vivo ? (p.positionAge ?? null) : null,
+    paradas_restantes: paradasRestantes, ...conforto };
 }
 const linhaJson = (l, ops) => ({ id: l.routeId, numero: l.shortName, nome: l.longName, cor: l.color || "#175898",
-  cor_texto: l.textColor || "#FFFFFF", operadora: ops[l.agencyId] ?? "", preco: l.price ?? null });
-const paradaViagem = (s, dist = null) => ({ id: s.stopId, nome: s.name, lat: s.lat, lon: s.lng, dist_m: dist });
-const paradaProximaJson = (p) => ({ id: p.stopId, nome: p.nome, lat: p.lat, lon: p.lon, dist_m: p.dist });
-const meta = (t) => ({ linha: t.shortName, cor: t.color || "#175898", route_id: t.routeId, trip_id: t.tripId, destino: t.headsign || "" });
-const chegada = (t, prox, refMs) => ({ ...meta(t), passagens: prox.map(([ms, d]) => passagem(ms, d, refMs)) });
+  cor_texto: l.textColor || "#FFFFFF", operadora: ops[l.agencyId] ?? "", preco: l.price ?? null, ...metadadosConforto(l) });
+const paradaViagem = (s, dist = null) => ({ id: s.stopId, nome: s.name, lat: s.lat, lon: s.lng, dist_m: dist,
+  integracao: tipoIntegracao(s.name) });
+const paradaProximaJson = (p) => ({ id: p.stopId, nome: p.nome, lat: p.lat, lon: p.lon, dist_m: p.dist,
+  integracao: tipoIntegracao(p.nome) });
+const meta = (t) => ({ linha: t.shortName, cor: t.color || "#175898", route_id: t.routeId, trip_id: t.tripId,
+  destino: t.headsign || "", ...metadadosConforto(t) });
+const chegada = (t, prox, refMs) => ({ ...meta(t), passagens: prox.map(([ms, d]) => passagem(ms, d, refMs, t.stopSequence, t)) });
 const andarMin = (d) => Math.max(1, Math.round((d * 1.3) / ANDAR_M_POR_MIN));
 
 function statusVeiculo(v, idade) {
@@ -317,7 +364,8 @@ async function veiculosDe(viagens, refMs) {
       const idade = idadeGps(v, refMs);
       const [lat, lon, rumo, trilha] = encaixar(v, t, trs[i]);
       return { id: String(v.vehicleId), lat, lon, rumo, trilha, atraso_s: Math.trunc(v.delay || 0),
-        gps_idade_s: Math.trunc(Math.max(idade, 0)), status: statusVeiculo(v, idade), seq: v.seq || 0, ...viagens[t] };
+        gps_idade_s: Math.trunc(Math.max(idade, 0)), status: statusVeiculo(v, idade), seq: v.seq || 0,
+        ...viagens[t], ...metadadosConforto(viagens[t], v) };
     });
   });
   return saida;
@@ -361,10 +409,18 @@ async function minhaParada(routeId, lat, lon, refMs, escolhida = null) {
     if (!minhas[s.tripId]) continue;
     const [dist, parada] = minhas[s.tripId];
     const prox = chegadas.filter((t) => t.tripId === s.tripId && t.stopId === parada.stopId)
-      .flatMap((t) => proximas(t.departures, refMs)).sort((a, b) => a[0] - b[0]).slice(0, 3);
-    const passagens = prox.map(([ms, p]) => passagem(ms, p, refMs));
+      .flatMap((t) => proximas(t.departures, refMs).map(([ms, p]) => [ms, p, t.stopSequence, t]))
+      .sort((a, b) => a[0] - b[0]).slice(0, 3);
+    const passagens = prox.map(([ms, p, paradaSeq, fonte]) => passagem(ms, p, refMs, paradaSeq, fonte));
     const primeiro = passagens.find((p) => p.confianca === "gps" || p.confianca === "gps_velho")?.veiculo ?? null;
-    const atraso = (frotas[s.tripId] ?? []).find((v) => v.id === primeiro)?.atraso_s ?? null;
+    const frota = frotas[s.tripId] ?? [];
+    const veiculo = frota.find((v) => v.id === primeiro) ?? null;
+    const atraso = veiculo?.atraso_s ?? null;
+    for (const p of passagens) {
+      const v = frota.find((item) => item.id === p.veiculo);
+      p.distancia_onibus_m = v ? Math.round(distancia(v.lat, v.lon, parada.lat, parada.lng)) : null;
+      if (v) Object.assign(p, metadadosConforto(p, v));
+    }
     saida.push({ trip_id: s.tripId, destino: s.headsign || "", parada: paradaViagem(parada, dist), escolhida: parada.stopId === escolhida,
       andar_min: dist != null ? andarMin(dist) : null, passagens, veiculo_proximo: primeiro, atraso_s: atraso });
   }
@@ -460,14 +516,15 @@ const ROTAS = [
     const diretas = (await linhasDiretas(origem, destino, refMs)).slice(0, 8).map((o) => ({
       linha: o.trip.shortName, route_id: o.trip.routeId, trip_id: o.trip.tripId, cor: o.trip.color || "#175898",
       destino: o.trip.headsign || "", embarque: paradaProximaJson(o.parada), desce: paradaViagem(o.desce),
-      andar_destino_m: o.andar, passagens: o.prox.slice(0, 3).map(([ms, p]) => passagem(ms, p, refMs)) }));
+      andar_destino_m: o.andar, passagens: o.prox.slice(0, 3).map(([ms, p]) => passagem(ms, p, refMs, o.trip.stopSequence, o.trip)) }));
     const itinerarios = [];
     if (!diretas.length) {
       for (const it of await planejar(origem, destino)) {
         const onibus = it.legs.filter((l) => l.transitLeg);
         if (!onibus.length) continue;
         itinerarios.push({ duracao_min: Math.round(it.duration / 60), andar_m: it.walkDistance || 0, chega: horaCurtaBrasilia(it.endTime),
-          trechos: onibus.map((l) => ({ linha: l.routeShortName || "?", sai: horaCurtaBrasilia(l.startTime), de: l.from.name, para: l.to.name })) });
+          trechos: onibus.map((l) => ({ linha: l.routeShortName || "?", sai: horaCurtaBrasilia(l.startTime), de: l.from.name,
+            para: l.to.name, de_integracao: tipoIntegracao(l.from.name), para_integracao: tipoIntegracao(l.to.name) })) });
       }
     }
     return { diretas, itinerarios };

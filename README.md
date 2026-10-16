@@ -14,6 +14,9 @@ PWA com frontend HTML/CSS/JavaScript e backend Node.js puro. O backend serve a a
 - Alternativas quando o GPS falha: busca manual e regiões do DF (Plano Piloto, Taguatinga, Riacho Fundo I, Ceilândia, Samambaia e Gama).
 - App Shell offline com Service Worker v6; respostas da API e localização nunca são armazenadas.
 - Legenda acessível explicando as cores de situação dos ônibus no mapa.
+- Integrações de rota destacadas com badges de Metrô-DF e BRT em embarques, desembarques e baldeações.
+- Selos de veículo acessível e ar-condicionado a partir dos metadados `wa`/`ac` da Mobilibus.
+- Alarme de proximidade para avisar quando o ônibus estiver a até três paradas (ou cerca de 1,2 km), com notificação, vibração e som sutil.
 - Encerramento gracioso de conexões HTTP e SSE.
 - Docker, Render, Railway, scripts Windows e testes automatizados.
 

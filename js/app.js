@@ -4,7 +4,7 @@ import {
   html, local, metros, nativo, pedir, segundosAte, selo, sincronizar,
 } from "./dados.js";
 import { Folha } from "./folha.js";
-import { Mapa } from "./mapa.js?v=7";
+import { Mapa } from "./mapa.js?v=8";
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -469,10 +469,21 @@ function linhaChegada(c) {
   const p = c.passagens[0];
   return h`<button class="chegada" data-acao="abrir-linha" data-route="${c.route_id}" data-trip="${c.trip_id}" aria-label="Linha ${c.linha} para ${c.destino}, ${CONFIANCA[p.confianca].rotulo}">
     ${chipLinha(c.linha, c.cor)}
-    <span class="meio"><span class="destino">${c.destino}</span>${selo(p.confianca)}</span>
+    <span class="meio"><span class="destino">${c.destino}</span><span class="selos-linha">${selo(p.confianca)}${selosConforto(p)}</span></span>
     <span class="quando" data-cont="${p.hora}" data-modo="curta">${faltaCurta(p.hora)}</span>
   </button>`;
 }
+
+const selosConforto = (item = {}) => h`${item.acessivel
+  ? h`<span class="selo-recurso acessivel" title="Veículo acessível para cadeirantes" aria-label="Veículo acessível">♿ Acessível</span>` : ""}${item.ar_condicionado
+  ? h`<span class="selo-recurso ar" title="Veículo com ar-condicionado" aria-label="Veículo com ar-condicionado">❄ Ar</span>` : ""}`;
+
+const badgeIntegracao = (integracao) => integracao ? h`<span class="badge-integracao ${integracao.tipo}"
+  title="Integração com ${integracao.rotulo}">${integracao.tipo === "metro" ? "M" : "BRT"} · ${integracao.rotulo}</span>` : h``;
+
+const distanciaOnibus = (p) => p.paradas_restantes != null
+  ? `${p.paradas_restantes} ${p.paradas_restantes === 1 ? "parada" : "paradas"}`
+  : p.distancia_onibus_m != null ? distancia(p.distancia_onibus_m) : null;
 
 // ---------------------------------------------------------------- linha
 function telaLinha() {
@@ -486,7 +497,8 @@ function telaLinha() {
     <div style="display:flex;gap:12px;align-items:flex-start">
       ${chipLinha(l.numero, l.cor, l.cor_texto, true)}
       <div style="flex:1;min-width:0"><h2 style="font-size:17px;margin:0">${l.nome}</h2>
-        <p class="sub" style="font-size:13px">${l.operadora}${l.preco ? ` · R$ ${l.preco.toFixed(2).replace(".", ",")}` : ""}</p></div>
+        <p class="sub" style="font-size:13px">${l.operadora}${l.preco ? ` · R$ ${l.preco.toFixed(2).replace(".", ",")}` : ""}</p>
+        <div class="selos-linha">${selosConforto(l)}</div></div>
       <button class="icone-botao" data-acao="favoritar" aria-pressed="${fav}" aria-label="${fav ? "Remover dos favoritos" : "Favoritar linha"}">${ICONE.estrela}</button>
     </div>
     ${det.sentidos.length > 1 ? h`<div class="sentidos" role="group" aria-label="Sentido">${det.sentidos.map((s) => h`
@@ -527,8 +539,10 @@ function parteHeroi() {
       <p class="rotulo">Passa na sua parada em</p>
       <p class="tempo" data-cont="${p.hora}" data-modo="heroi" aria-live="off">${faltaCurta(p.hora)}</p>
       <div class="linha-info">${selo(p.confianca)}
+        ${selosConforto(p)}
         ${atraso ? h`<span class="atraso ${atraso.classe}">${atraso.texto}</span>` : ""}
-        <span>às ${horaCurta(p.hora)}</span></div>
+        <span>às ${horaCurta(p.hora)}</span>
+        ${distanciaOnibus(p) ? h`<span class="proximidade">· ${distanciaOnibus(p)} de distância</span>` : ""}</div>
     </div>
     ${!vivo ? h`<div class="aviso-tabela${p.confianca === "fantasma" ? " forte" : ""}">${ICONE.info}<span>${p.confianca === "fantasma"
       ? h`<b>Sem ônibus no GPS.</b> O das ${horaCurta(p.hora)} já devia ter saído do terminal e não aparece: pode não passar.`
@@ -537,12 +551,13 @@ function parteHeroi() {
     ${folga < 0 ? h`<p class="correr" style="margin:0 0 6px">A pé leva ~${m.andar_min} min: este você provavelmente perde.</p>`
       : folga < 3 ? h`<p class="correr" style="margin:0 0 6px">Saia agora: a caminhada leva ~${m.andar_min} min.</p>` : ""}
     ${resto.length ? h`<h3>Depois</h3><ul class="passagens">${resto.map((x) => h`<li>
-      <span class="quando" data-cont="${x.hora}" data-modo="curta">${faltaCurta(x.hora)}</span>${selo(x.confianca)}<span class="hora">${horaCurta(x.hora)}</span></li>`)}</ul>` : ""}
+      <span class="quando" data-cont="${x.hora}" data-modo="curta">${faltaCurta(x.hora)}</span>${selo(x.confianca)}${selosConforto(x)}<span class="hora">${horaCurta(x.hora)}</span></li>`)}</ul>` : ""}
     ${alerta
-      ? h`<div class="aviso-linha"><button class="botao secundario largo" data-acao="cancelar-alerta">${ICONE.sino} Aviso a ${alerta.minutos} min ativo · cancelar</button></div>`
-      : h`<form class="aviso-linha" data-form="alerta"><button class="botao largo">${ICONE.sino} Avisar quando faltar</button>
+      ? h`<div class="aviso-linha"><button class="botao secundario largo" data-acao="cancelar-alerta">${ICONE.sino} ${alerta.modo === "proximidade" ? "Aviso quando estiver chegando ativo" : `Aviso a ${alerta.minutos} min ativo`} · cancelar</button></div>`
+      : h`<div class="alertas-opcoes"><button class="botao largo" data-acao="alerta-proximidade">${ICONE.sino} Me avise quando estiver chegando</button>
+        <form class="aviso-linha" data-form="alerta"><button class="botao secundario">Avisar quando faltar</button>
           <label class="sr" for="min-alerta">Minutos</label>
-          <select id="min-alerta" name="minutos">${[3, 5, 7, 10, 15].map((n) => h`<option value="${n}" ${n === Math.max(5, (m.andar_min ?? 0) + 1) || (n === 5 && (m.andar_min ?? 0) < 4) ? "selected" : ""}>${n} min</option>`)}</select></form>`}`;
+          <select id="min-alerta" name="minutos">${[3, 5, 7, 10, 15].map((n) => h`<option value="${n}" ${n === Math.max(5, (m.andar_min ?? 0) + 1) || (n === 5 && (m.andar_min ?? 0) < 4) ? "selected" : ""}>${n} min</option>`)}</select></form></div>`}`;
 }
 
 const normalizar = (t) => t.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
@@ -559,7 +574,7 @@ function parteEscolha() {
       const dist = estado.pos ? metros(estado.pos, p) : null;
       return h`<li data-nome="${normalizar(p.nome)}"><button class="chegada" data-acao="definir-parada" data-id="${p.id}" style="border:0;padding:0">
         <span class="dist" style="min-width:34px;text-align:center">${i + 1}</span>
-        <span class="meio"><span class="destino" style="white-space:normal">${p.nome}</span></span>
+        <span class="meio"><span class="destino" style="white-space:normal">${p.nome}</span>${badgeIntegracao(p.integracao)}</span>
         ${dist != null ? h`<span class="mudo" style="font-size:13px;font-weight:700">${distancia(dist)}</span>` : ""}
         ${p.id === estado.escolhida ? h`<span class="selo selo-gps">Sua</span>` : ""}</button></li>`;
     })}</ol></div>`;
@@ -642,8 +657,8 @@ function parteRota(r, de, para) {
       <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px">
         <span style="font-size:30px;font-weight:800;letter-spacing:-.03em" data-cont="${p.hora}" data-modo="curta">${faltaCurta(p.hora)}</span>
         ${selo(p.confianca)}<span class="mudo" style="font-weight:700;margin-left:auto">${horaCurta(p.hora)}</span></div>
-      <div class="trecho"><span class="ponto" style="border-color:${o.cor}"></span><span><span class="etiqueta">Pegue em</span><br>${o.embarque.nome} · ${distancia(o.embarque.dist_m)}</span></div>
-      <div class="trecho"><span class="ponto" style="border-color:${o.cor};background:${o.cor}"></span><span><span class="etiqueta">Desça em</span><br>${o.desce.nome} · +${distancia(o.andar_destino_m)} a pé</span></div>
+      <div class="trecho"><span class="ponto" style="border-color:${o.cor}"></span><span><span class="etiqueta">Pegue em</span><br>${o.embarque.nome} ${badgeIntegracao(o.embarque.integracao)} · ${distancia(o.embarque.dist_m)}</span></div>
+      <div class="trecho"><span class="ponto" style="border-color:${o.cor};background:${o.cor}"></span><span><span class="etiqueta">Desça em</span><br>${o.desce.nome} ${badgeIntegracao(o.desce.integracao)} · +${distancia(o.andar_destino_m)} a pé</span></div>
       ${o.passagens.length > 1 ? h`<p class="sub" style="font-size:13px;margin-top:6px">Depois: ${o.passagens.slice(1).map((x, i) => h`${i ? " · " : ""}${horaCurta(x.hora)} (${CONFIANCA[x.confianca].rotulo.toLowerCase()})`)}</p>` : ""}
     </button>`;
   })}`;
@@ -651,7 +666,7 @@ function parteRota(r, de, para) {
     ${r.itinerarios.map((it) => h`<div class="cartao">
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px">${it.trechos.map((t, i) => h`${i ? h`<span class="mudo">›</span>` : ""}<span class="chip-linha" style="--cor:var(--marca);--cor-texto:var(--superficie)">${t.linha}</span>`)}
         <span class="mudo" style="margin-left:auto;font-weight:700">${it.duracao_min} min · chega ~${it.chega}</span></div>
-      ${it.trechos.map((t) => h`<div class="trecho"><span class="ponto"></span><span><b>${t.linha}</b> às ${t.sai} (tabela)<br><span class="sub">${t.de} → ${t.para}</span></span></div>`)}
+      ${it.trechos.map((t) => h`<div class="trecho"><span class="ponto"></span><span><b>${t.linha}</b> às ${t.sai} (tabela)<br><span class="sub">${t.de} ${badgeIntegracao(t.de_integracao)} → ${t.para} ${badgeIntegracao(t.para_integracao)}</span></span></div>`)}
       <p class="sub" style="font-size:13px;margin-top:4px">${distancia(it.andar_m)} de caminhada no total</p></div>`)}`;
   return h`${cab}<div class="vazio"><div class="ilustra">${ICONE.rota}</div><b>Nenhum ônibus encontrado</b><p>Não achei linha entre esses pontos agora. Tente um destino mais próximo de uma via principal.</p></div>`;
 }
@@ -712,7 +727,7 @@ conteudo.addEventListener("click", (e) => {
     estado.alertas = estado.alertas.filter((x) => !(m && x.trip === m.trip_id && x.stop === m.parada.id));
     local.gravar("alertas", estado.alertas);
     trocarParte("heroi", parteHeroi());
-  }
+  } else if (a === "alerta-proximidade") criarAlertaProximidade();
 });
 
 conteudo.addEventListener("submit", async (e) => {
@@ -738,27 +753,74 @@ conteudo.addEventListener("submit", async (e) => {
 });
 
 // ================================================================ alertas (notificação do navegador)
+let contextoSom = null;
+
+function prepararSom() {
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return;
+  contextoSom ??= new AudioCtx();
+  contextoSom.resume?.().catch(() => {});
+}
+
+function tocarSomAlerta() {
+  if (!contextoSom || contextoSom.state !== "running") return;
+  const inicio = contextoSom.currentTime;
+  for (const [quando, frequencia] of [[0, 660], [0.18, 880]]) {
+    const oscilador = contextoSom.createOscillator(), ganho = contextoSom.createGain();
+    oscilador.frequency.value = frequencia;
+    ganho.gain.setValueAtTime(0.0001, inicio + quando);
+    ganho.gain.exponentialRampToValueAtTime(0.055, inicio + quando + 0.02);
+    ganho.gain.exponentialRampToValueAtTime(0.0001, inicio + quando + 0.14);
+    oscilador.connect(ganho).connect(contextoSom.destination);
+    oscilador.start(inicio + quando);
+    oscilador.stop(inicio + quando + 0.15);
+  }
+}
+
+async function pedirPermissaoAlerta() {
+  prepararSom();
+  if (nativo && notificacoesNativas()) {
+    return (await notificacoesNativas().requestPermissions().catch(() => ({}))).display === "granted";
+  }
+  if (!("Notification" in window)) return false;
+  return Notification.permission === "granted" || (await Notification.requestPermission()) === "granted";
+}
+
+function gravarAlerta(alerta) {
+  estado.alertas = estado.alertas.filter((a) => !(a.trip === alerta.trip && a.stop === alerta.stop));
+  estado.alertas.push(alerta);
+  local.gravar("alertas", estado.alertas);
+  trocarParte("heroi", parteHeroi());
+}
+
 async function criarAlerta(minutos) {
   const m = minhaAtual();
   if (!m) return;
-  let permitido = false;
-  if (nativo && notificacoesNativas()) {
-    permitido = (await notificacoesNativas().requestPermissions().catch(() => ({}))).display === "granted";
-  } else if ("Notification" in window) {
-    permitido = Notification.permission === "granted" || (await Notification.requestPermission()) === "granted";
-  }
+  const permitido = await pedirPermissaoAlerta();
   const l = estado.linha.linha;
-  estado.alertas.push({ route: l.id, linha: l.numero, trip: m.trip_id, stop: m.parada.id, destino: m.destino, minutos, criado: Date.now() });
-  local.gravar("alertas", estado.alertas);
+  gravarAlerta({ route: l.id, linha: l.numero, trip: m.trip_id, stop: m.parada.id, destino: m.destino,
+    modo: "tempo", minutos, criado: Date.now() });
   avisar(permitido ? `Vou avisar quando o ${l.numero} estiver a ${minutos} min. Deixe o app aberto.`
     : `Notificações bloqueadas: vou avisar só aqui na tela, com o app aberto.`);
-  trocarParte("heroi", parteHeroi());
+}
+
+async function criarAlertaProximidade() {
+  const m = minhaAtual();
+  if (!m) return;
+  const permitido = await pedirPermissaoAlerta();
+  const l = estado.linha.linha;
+  gravarAlerta({ route: l.id, linha: l.numero, trip: m.trip_id, stop: m.parada.id, destino: m.destino,
+    modo: "proximidade", limite_paradas: 3, raio_m: 1200, criado: Date.now() });
+  avisar(permitido ? `Vou avisar quando o ${l.numero} estiver a 2 ou 3 paradas. Deixe o app aberto.`
+    : `Notificações bloqueadas: o aviso aparecerá aqui enquanto o app estiver aberto.`);
+  verificarAlertas();
 }
 
 const notificacoesNativas = () => window.Capacitor?.Plugins?.LocalNotifications;
 
 async function notificar(titulo, corpo) {
   navigator.vibrate?.([200, 100, 200]);
+  tocarSomAlerta();
   avisar(`${titulo} — ${corpo}`);
   if (nativo && notificacoesNativas()) {
     await notificacoesNativas().schedule({ notifications: [{ id: Date.now() % 2147483647, title: titulo, body: corpo }] }).catch(() => {});
@@ -783,8 +845,17 @@ async function verificarAlertas() {
       const m = minhas.find((x) => x.trip_id === a.trip && x.parada.id === a.stop);
       // Ignora "pode não passar": avisar de um ônibus que talvez nem exista é pior que não avisar.
       const p = m?.passagens.find((x) => x.confianca !== "fantasma");
-      if (p && segundosAte(p.hora) / 60 <= a.minutos) {
-        await notificar(`${a.linha} chegando`, `${faltaCurta(p.hora)} na sua parada (${CONFIANCA[p.confianca].rotulo.toLowerCase()}).`);
+      const porParadas = p?.veiculo && p.paradas_restantes != null && p.paradas_restantes <= (a.limite_paradas ?? 3);
+      const porRaio = p?.veiculo && p.paradas_restantes == null && p.distancia_onibus_m != null && p.distancia_onibus_m <= (a.raio_m ?? 1200);
+      const deveAvisar = a.modo === "proximidade" ? porParadas || porRaio : p && segundosAte(p.hora) / 60 <= a.minutos;
+      if (deveAvisar) {
+        const proximidade = p.paradas_restantes != null
+          ? `${p.paradas_restantes || "menos de uma"} ${p.paradas_restantes === 1 ? "parada" : "paradas"}`
+          : `${distancia(p.distancia_onibus_m)} da parada`;
+        const corpo = a.modo === "proximidade"
+          ? `Está a ${proximidade}. Previsão: ${faltaCurta(p.hora)}.`
+          : `${faltaCurta(p.hora)} na sua parada (${CONFIANCA[p.confianca].rotulo.toLowerCase()}).`;
+        await notificar(`${a.linha} chegando`, corpo);
         continue;
       }
     } catch { /* tenta no próximo ciclo */ }

@@ -156,7 +156,7 @@ export class Mapa {
       } });
     m.addLayer({ id: "onibus-rotulo", type: "symbol", source: "onibus", minzoom: 12,
       layout: {
-        "text-field": ["get", "linha"], "text-font": ["Noto Sans Bold"],
+        "text-field": ["get", "rotulo"], "text-font": ["Noto Sans Bold"],
         "text-size": ["interpolate", ["linear"], ["zoom"], 12, 10, 16, 13],
         "text-variable-anchor": ["left", "right", "top", "bottom"], "text-radial-offset": 1.3,
         "text-allow-overlap": false, "symbol-sort-key": ["case", ["get", "destaque"], 0, 1],
@@ -293,7 +293,9 @@ export class Mapa {
   _pintarOnibus(t = performance.now()) {
     this._fonte("onibus", { type: "FeatureCollection", features: [...this.onibus.values()].map((o) => ({
       type: "Feature", geometry: { type: "Point", coordinates: o.pos },
-      properties: { id: o.v.id, linha: o.v.linha, status: o.v.status, cor: COR_STATUS[o.v.status], rumo: o.rumo, destaque: o.v.id === this.destaque },
+      properties: { id: o.v.id, linha: o.v.linha,
+        rotulo: `${o.v.linha}${o.v.acessivel ? " ♿" : ""}${o.v.ar_condicionado ? " ❄" : ""}`,
+        status: o.v.status, cor: COR_STATUS[o.v.status], rumo: o.rumo, destaque: o.v.id === this.destaque },
     })) });
     if (this.destaque && this.mapa.getLayer("onibus-pulso") && !reduzMovimento) {
       const fase = (t % 1800) / 1800;                         // pulso do ônibus que chega primeiro
