@@ -6,6 +6,9 @@ PWA com frontend HTML/CSS/JavaScript e backend Node.js puro. O backend serve a a
 
 ## Recursos concluídos
 
+- Até dois atalhos de destino personalizáveis, visíveis junto da busca e acionados com um toque.
+- Compartilhamento do veículo acompanhado por link, compartilhamento nativo ou WhatsApp.
+- Badges de infraestrutura para abrigo, banco, terminal, estação ou ponto simples com dados do OpenStreetMap.
 - Foto pública georreferenciada ou contexto de satélite ao abrir uma parada, com expansão em tela cheia.
 - Prédios 3D a partir do OpenMapTiles em zoom alto e alternância rápida 3D/2D.
 - Ônibus com rumo visual, pulso de tempo real e microindicadores de acessibilidade e climatização.

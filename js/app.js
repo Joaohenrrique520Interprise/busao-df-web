@@ -3,8 +3,8 @@ import {
   CONFIANCA, ErroApi, aoVivo, atrasoTexto, bruto, chipLinha, decodificar, distancia, faltaCurta, h, horaCurta,
   html, local, metros, nativo, pedir, segundosAte, selo, sincronizar,
 } from "./dados.js";
-import { Folha, abrirImagemTelaCheia } from "./folha.js?v=9";
-import { Mapa } from "./mapa.js?v=9";
+import { Folha, abrirImagemTelaCheia, compartilharTrajeto } from "./folha.js?v=10";
+import { Mapa } from "./mapa.js?v=10";
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -30,6 +30,8 @@ const estado = {
   parada: null,              // parada aberta {id, nome, lat, lon}
   chegadasParada: null,
   fotoParada: null,
+  estruturaParada: null,
+  veiculoFoco: null,
   ultimo: null,              // último pacote ao vivo
   intervaloS: 15,
   conexao: "parado",
@@ -67,7 +69,7 @@ document.addEventListener("click", (e) => {
 
 // ================================================================ mapa e painel
 const mapa = new Mapa($("#mapa"), tema(), {
-  aoClicarOnibus: (v) => abrirLinha(v.route_id, v.trip_id),
+  aoClicarOnibus: (v) => abrirLinha(v.route_id, v.trip_id, v.id),
   aoClicarParada: (p) => {
     if (estado.vista === "linha" && estado.linha) definirParada(p.id);
     else if (p.id) abrirParada(p);
@@ -164,6 +166,7 @@ function iniciarGeo() {
       return;
     }
     estado.pos = novo;
+    renderAtalhosTopo();
     if (primeira && estado.vista === "inicio") mapa.centralizar(novo);
     conectar();
     if (primeira) render();
@@ -176,6 +179,7 @@ function definirPosicao(lat, lon, rotulo, origem = "endereco") {
   mapa.centralizar(estado.pos);
   conectar();
   render();
+  renderAtalhosTopo();
 }
 
 // ================================================================ tempo real
@@ -230,10 +234,11 @@ function pintarMapa() {
   if (!d) return;
   if (estado.vista === "linha" && estado.linha) {
     const daLinha = d.veiculos.filter((v) => v.trip_id === estado.sentido);
-    mapa.veiculos(daLinha, minhaAtual()?.veiculo_proximo, estado.intervaloS);
+    mapa.veiculos(daLinha, estado.veiculoFoco ?? minhaAtual()?.veiculo_proximo, estado.intervaloS);
   } else {
     mapa.veiculos(d.veiculos, null, estado.intervaloS);
   }
+  if (estado.veiculoFoco) mapa.focarVeiculo(estado.veiculoFoco);
 }
 
 // ================================================================ navegação
@@ -244,10 +249,11 @@ function irPara(vista) {
   conteudo.scrollTop = 0;
 }
 
-async function abrirLinha(routeId, tripId = null) {
+async function abrirLinha(routeId, tripId = null, veiculoId = null) {
   fecharSugestoes();
   estado.vista = "linha";
   estado.linha = null;
+  estado.veiculoFoco = veiculoId ? String(veiculoId) : null;
   render();        // esqueleto
   folha.ir("meio");
   try {
@@ -302,12 +308,21 @@ async function abrirParada(p) {
   estado.parada = p;
   estado.chegadasParada = null;
   estado.fotoParada = null;
+  estado.estruturaParada = null;
+  estado.veiculoFoco = null;
   estado.linha = null;
   irPara("parada");
   mapa.minhaParada(p);
   mapa.centralizar(p, 16);
   conectar();
-  await Promise.allSettled([carregarChegadasParada(), carregarFotoParada()]);
+  await Promise.allSettled([carregarChegadasParada(), carregarFotoParada(), carregarEstruturaParada()]);
+}
+
+async function carregarEstruturaParada() {
+  const p = estado.parada;
+  try { estado.estruturaParada = await pedir("/api/paradas/estrutura", { nome: p.nome, lat: p.lat, lon: p.lon }); }
+  catch { estado.estruturaParada = { tipo: "simples", rotulo: "Estrutura não confirmada", icone: "●", descricao: "Consulte a referência visual." }; }
+  if (estado.parada === p && estado.vista === "parada") trocarParte("estrutura-parada", badgeEstrutura());
 }
 
 async function carregarFotoParada() {
@@ -353,6 +368,7 @@ function atualizarPartes() {
   if (estado.vista === "inicio") trocarParte("perto", partePerto());
   if (estado.vista === "linha" && estado.linha) {
     trocarParte("heroi", parteHeroi());
+    if (estado.veiculoFoco) trocarParte("acompanhamento", conteudoAcompanhamento());
     mapa.minhaParada(minhaAtual()?.parada ?? null);
   }
   if (estado.vista === "parada") carregarChegadasParada();
@@ -450,22 +466,40 @@ function telaInicio() {
 
 function blocoAtalhos() {
   const favs = estado.favoritos;
-  const locais = Object.entries(estado.locais);
+  const locais = locaisRapidos();
   return h`
     ${favs.length ? h`<h3>Linhas favoritas</h3><div class="chips">${favs.map((f) => h`
       <button class="chip" data-acao="abrir-linha" data-route="${f.id}">${chipLinha(f.numero, f.cor, f.cor_texto)}<span>${f.nome.split("/")[0]}</span></button>`)}</div>` : ""}
     <h3>Meus lugares</h3>
     <div class="chips">
-      ${locais.map(([nome]) => h`<button class="chip sem-chip" data-acao="rota-para" data-nome="${nome}">${ICONE.pino} Ir para ${nome}</button>`)}
-      ${estado.pos ? h`<button class="chip sem-chip" data-acao="mostrar-salvar">+ Salvar este lugar</button>` : ""}
-      ${!locais.length && !estado.pos ? h`<span class="sub">Salve casa e trabalho para ir mais rápido.</span>` : ""}
+      ${locais.map(([chave, lugar]) => h`<button class="chip sem-chip" data-acao="rota-para" data-nome="${chave}">${ICONE.pino} Ir para ${lugar.rotulo ?? chave}</button>
+        <button class="chip sem-chip mudo" data-acao="remover-local" data-nome="${chave}" aria-label="Remover ${lugar.rotulo ?? chave}">✕</button>`)}
+      ${locais.length < 2 ? h`<button class="chip sem-chip" data-acao="mostrar-salvar">+ Criar atalho</button>` : ""}
+      ${!locais.length ? h`<span class="sub">Salve Casa e Trabalho para calcular a rota com um toque.</span>` : ""}
     </div>
-    <form data-form="salvar-local" class="campo oculto" style="margin-top:8px">
-      <label for="nome-local" class="sr">Nome do lugar</label>
-      <input id="nome-local" name="nome" placeholder="Nome (ex.: casa, trabalho)" required maxlength="30">
-      <button class="botao acento" style="height:38px;padding:0 14px">Salvar</button>
+    <form data-form="salvar-local" class="atalho-form oculto">
+      <label>Nome do atalho<input name="nome" placeholder="Casa, Trabalho…" required maxlength="30"></label>
+      <label>Destino<input name="destino" placeholder="Endereço ou lugar no DF" required maxlength="120"></label>
+      <button class="botao acento largo">Salvar destino</button>
     </form>`;
 }
+
+const locaisRapidos = () => Object.entries(estado.locais).slice(0, 2);
+
+function renderAtalhosTopo() {
+  const itens = locaisRapidos();
+  for (const area of $$('[data-atalhos-topo]')) {
+    area.innerHTML = html(h`${itens.map(([chave, lugar], i) => h`<button type="button" class="atalho-rapido" data-atalho-destino="${chave}"
+      ${estado.pos ? "" : "disabled"}><span>${i ? "▣" : "⌂"}</span> Ir pra ${lugar.rotulo ?? chave}</button>`)}`);
+    area.classList.toggle("oculto", !itens.length);
+  }
+}
+
+document.addEventListener("click", (e) => {
+  const botao = e.target.closest("[data-atalho-destino]");
+  if (!botao || botao.disabled) return;
+  abrirRota(botao.dataset.atalhoDestino);
+});
 
 function partePerto() {
   const d = estado.ultimo;
@@ -519,11 +553,33 @@ function telaLinha() {
         <div class="selos-linha">${selosConforto(l)}</div></div>
       <button class="icone-botao" data-acao="favoritar" aria-pressed="${fav}" aria-label="${fav ? "Remover dos favoritos" : "Favoritar linha"}">${ICONE.estrela}</button>
     </div>
+    ${estado.veiculoFoco ? painelAcompanhamento() : ""}
     ${det.sentidos.length > 1 ? h`<div class="sentidos" role="group" aria-label="Sentido">${det.sentidos.map((s) => h`
       <button data-acao="sentido" data-trip="${s.trip_id}" aria-pressed="${s.trip_id === estado.sentido}">→ ${s.destino.replace(/\s*\(.*\)$/, "")}</button>`)}</div>` : ""}
     <div data-parte="heroi">${parteHeroi()}</div>
     <div data-parte="escolha"></div>
     ${sentido?.saidas_terminal.length ? h`<h3>Saídas do terminal (tabela)</h3><p class="sub">${sentido.saidas_terminal.join(" · ")}</p>` : ""}`;
+}
+
+function painelAcompanhamento() {
+  return h`<section class="acompanhamento" data-parte="acompanhamento" aria-live="polite">${conteudoAcompanhamento()}</section>`;
+}
+
+function conteudoAcompanhamento() {
+  const veiculo = estado.ultimo?.veiculos.find((v) => String(v.id) === estado.veiculoFoco);
+  return h`<div><span class="acompanhamento-pulso"></span><div><b>Acompanhando este ônibus</b>
+      <small>${veiculo ? `Veículo ${veiculo.id} · posição atualizada em tempo real` : `Procurando o veículo ${estado.veiculoFoco} no GPS…`}</small></div></div>
+    <div class="compartilhar-acoes"><button class="botao secundario" data-acao="compartilhar-trajeto">↗ Compartilhar Trajeto</button>
+      <button class="botao whatsapp" data-acao="compartilhar-whatsapp" aria-label="Compartilhar trajeto pelo WhatsApp">WhatsApp</button></div>`;
+}
+
+function dadosCompartilhamento() {
+  const l = estado.linha?.linha;
+  const url = new URL(location.pathname, location.origin);
+  url.searchParams.set("linha", l.id);
+  url.searchParams.set("trip", estado.sentido);
+  url.searchParams.set("veiculo", estado.veiculoFoco);
+  return { url: url.href, texto: `Acompanhe ao vivo o ônibus ${l.numero} (veículo ${estado.veiculoFoco}) no Busão DF.` };
 }
 
 function parteHeroi() {
@@ -612,9 +668,16 @@ function telaParada() {
     <button class="voltar" data-acao="voltar">${ICONE.voltar} Voltar</button>
     <h2>${p.nome}</h2>
     <p class="sub">${dist != null ? `${distancia(dist)} de ${estado.pos.origem === "gps" ? "você" : estado.pos.rotulo}` : "Parada de ônibus"}</p>
+    <div data-parte="estrutura-parada">${badgeEstrutura()}</div>
     <div data-parte="foto-parada">${parteFotoParada()}</div>
     <h3>Próximas chegadas</h3>
     <div data-parte="chegadas">${parteChegadasParada()}</div>`;
+}
+
+function badgeEstrutura() {
+  const estrutura = estado.estruturaParada;
+  if (!estrutura) return h`<span class="badge-estrutura carregando"><i></i> Consultando estrutura…</span>`;
+  return h`<span class="badge-estrutura ${estrutura.tipo}" title="${estrutura.descricao}"><i>${estrutura.icone}</i>${estrutura.rotulo}</span>`;
 }
 
 function parteFotoParada() {
@@ -637,15 +700,15 @@ function parteChegadasParada() {
 
 // ---------------------------------------------------------------- rota
 function telaRota() {
-  const locais = Object.keys(estado.locais);
+  const locais = locaisRapidos();
   return h`
     <button class="voltar" data-acao="voltar">${ICONE.voltar} Voltar</button>
     <h2>Como chegar</h2>
     <form data-form="rota" style="margin-top:12px">
       <div class="campo"><label for="rota-de">De</label><input id="rota-de" name="de" value="${estado.pos ? (estado.pos.origem === "gps" ? "Minha localização" : estado.pos.rotulo) : ""}" placeholder="Endereço de saída" required></div>
       <div class="campo"><label for="rota-para">Para</label><input id="rota-para" name="para" placeholder="Endereço ou lugar (ex.: Rodoviária)" required></div>
-      ${locais.length ? h`<div class="chips" style="margin:2px 0 10px">${locais.map((n) => h`<button type="button" class="chip sem-chip" data-acao="preencher-para" data-nome="${n}">${n}</button>`)}
-        ${locais.map((n) => h`<button type="button" class="chip sem-chip mudo" data-acao="remover-local" data-nome="${n}" aria-label="Apagar ${n}">✕ ${n}</button>`)}</div>` : ""}
+      ${locais.length ? h`<div class="chips" style="margin:2px 0 10px">${locais.map(([chave, lugar]) => h`<button type="button" class="chip sem-chip" data-acao="preencher-para" data-nome="${chave}">${lugar.rotulo ?? chave}</button>`)}
+        ${locais.map(([chave, lugar]) => h`<button type="button" class="chip sem-chip mudo" data-acao="remover-local" data-nome="${chave}" aria-label="Apagar ${lugar.rotulo ?? chave}">✕ ${lugar.rotulo ?? chave}</button>`)}</div>` : ""}
       <button class="botao acento largo">Ver ônibus</button>
     </form>
     <div data-parte="resultado" style="margin-top:14px"></div>`;
@@ -723,7 +786,7 @@ conteudo.addEventListener("click", (e) => {
   else if (a === "abrir-parada") abrirParada({ id: b.dataset.id, nome: b.dataset.nome, lat: +b.dataset.lat, lon: +b.dataset.lon });
   else if (a === "ampliar-foto" && estado.fotoParada?.url) abrirImagemTelaCheia(estado.fotoParada.url,
     `Entorno da parada ${estado.parada.nome}`, `${estado.fotoParada.credito}${estado.fotoParada.licenca ? ` · ${estado.fotoParada.licenca}` : ""}`);
-  else if (a === "voltar") { estado.linha = null; estado.parada = null; irPara("inicio"); conectar(); if (estado.pos) mapa.centralizar(estado.pos); }
+  else if (a === "voltar") { estado.linha = null; estado.parada = null; estado.veiculoFoco = null; history.replaceState(null, "", location.pathname); irPara("inicio"); conectar(); if (estado.pos) mapa.centralizar(estado.pos); }
   else if (a === "tentar") { estado.vista === "parada" ? carregarChegadasParada() : estado.vista === "rota" ? calcularRota() : render(); }
   else if (a === "tentar-geo") iniciarGeo();
   else if (a === "selecionar-regiao") definirPosicao(+b.dataset.lat, +b.dataset.lon, b.dataset.nome, "regiao");
@@ -739,8 +802,11 @@ conteudo.addEventListener("click", (e) => {
   else if (a === "abrir-rota") abrirRota();
   else if (a === "rota-para") abrirRota(b.dataset.nome);
   else if (a === "preencher-para") $('[name="para"]', conteudo).value = b.dataset.nome;
-  else if (a === "remover-local") { delete estado.locais[b.dataset.nome]; local.gravar("locais", estado.locais); render(); }
+  else if (a === "remover-local") { delete estado.locais[b.dataset.nome]; local.gravar("locais", estado.locais); render(); renderAtalhosTopo(); }
   else if (a === "mostrar-salvar") { const f = $('[data-form="salvar-local"]', conteudo); f.classList.remove("oculto"); f.nome.focus(); }
+  else if (a === "compartilhar-trajeto" || a === "compartilhar-whatsapp") {
+    compartilharTrajeto({ ...dadosCompartilhamento(), whatsapp: a === "compartilhar-whatsapp" }).then(avisar).catch(() => {});
+  }
   else if (a === "sentido") {
     estado.sentido = b.dataset.trip;
     local.gravar(`sentido:${estado.linha.linha.id}`, estado.sentido);
@@ -774,12 +840,17 @@ conteudo.addEventListener("submit", async (e) => {
       definirPosicao(end.lat, end.lon, end.rotulo.split(",")[0]);
     } catch (err) { avisar(err.message); botao.disabled = false; }
   } else if (tipo === "salvar-local") {
-    const nome = f.nome.value.trim().toLowerCase();
-    if (!nome || !estado.pos) return;
-    estado.locais[nome] = { lat: estado.pos.lat, lon: estado.pos.lon };
-    local.gravar("locais", estado.locais);
-    avisar(`“${nome}” salvo.`);
-    render();
+    const rotulo = f.nome.value.trim(), chave = rotulo.toLowerCase(), destino = f.destino.value.trim();
+    if (!rotulo || !destino) return;
+    if (!estado.locais[chave] && locaisRapidos().length >= 2) { avisar("Você já tem dois atalhos. Remova um para salvar outro."); return; }
+    const botao = f.querySelector("button"); botao.disabled = true;
+    try {
+      const end = await pedir("/api/endereco", { q: destino });
+      estado.locais[chave] = { lat: end.lat, lon: end.lon, rotulo, endereco: end.rotulo };
+      local.gravar("locais", estado.locais);
+      avisar(`Atalho “${rotulo}” salvo.`);
+      render(); renderAtalhosTopo();
+    } catch (err) { avisar(err.message); botao.disabled = false; }
   } else if (tipo === "alerta") criarAlerta(+f.minutos.value);
 });
 
@@ -953,6 +1024,11 @@ for (const caixa of $$("[data-busca]")) {
 
 // ================================================================ início
 render();
+renderAtalhosTopo();
+const parametrosIniciais = new URLSearchParams(location.search);
+if (parametrosIniciais.get("linha") && parametrosIniciais.get("veiculo")) {
+  abrirLinha(parametrosIniciais.get("linha"), parametrosIniciais.get("trip"), parametrosIniciais.get("veiculo"));
+}
 iniciarGeo();
 if (!nativo && "serviceWorker" in navigator && isSecureContext) {
   let recarregando = false;

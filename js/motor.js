@@ -7,6 +7,7 @@ const API = "https://mobilibus.com/api";
 const OTP = "https://otp.mobilibus.com/FY7J-lwk85QGbn/otp/routers/default";
 const NOMINATIM = "https://nominatim.openstreetmap.org/search";
 const WIKIMEDIA = "https://commons.wikimedia.org/w/api.php";
+const OVERPASS = "https://overpass-api.de/api/interpreter";
 const PROJETO = "3c189";
 const CAIXA_DF = "-48.30,-15.45,-47.30,-16.06";
 const FUSO_MS = -3 * 3600 * 1000;           // Brasília, sem horário de verão
@@ -163,6 +164,29 @@ export async function imagemParada(lat, lon) {
       bbox, bboxSR: 4326, imageSR: 4326, size: "960,540", format: "jpg", f: "image",
     }), link: `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=19/${latitude}/${longitude}`,
     credito: "Imagem de satélite Esri World Imagery", licenca: "Contexto visual" };
+}
+
+/** Classifica a estrutura da parada com integração conhecida e dados abertos do OSM. */
+export async function infraestruturaParada(nome, lat, lon) {
+  const integracao = tipoIntegracao(nome);
+  if (integracao) return { tipo: "integracao", rotulo: `Integração ${integracao.rotulo}`, icone: integracao.tipo === "metro" ? "M" : "BRT",
+    descricao: "Terminal ou estação com conexão estrutural." };
+  if (/\b(terminal|rodoviaria|estacao)\b/i.test(normalizar(nome))) return { tipo: "integracao", rotulo: "Terminal / estação", icone: "T",
+    descricao: "Ponto localizado em estrutura de terminal ou estação." };
+  const latitude = Number(lat), longitude = Number(lon);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return { tipo: "simples", rotulo: "Ponto simples", icone: "●",
+    descricao: "Sem informação de abrigo nos dados abertos." };
+  try {
+    const consulta = `[out:json][timeout:8];(nwr(around:35,${latitude},${longitude})[highway=bus_stop];nwr(around:35,${latitude},${longitude})[amenity=shelter];);out tags center 10;`;
+    const dados = await obter(OVERPASS, { data: consulta }, 24 * 3600);
+    const tags = (dados.elements ?? []).map((e) => e.tags ?? {});
+    const coberta = tags.some((t) => verdadeiro(t.shelter) || verdadeiro(t.covered) || t.amenity === "shelter");
+    const banco = tags.some((t) => verdadeiro(t.bench));
+    if (coberta) return { tipo: "abrigo", rotulo: banco ? "Abrigo com banco" : "Parada com abrigo", icone: "⌂",
+      descricao: "Cobertura registrada no OpenStreetMap." };
+    if (banco) return { tipo: "banco", rotulo: "Parada com banco", icone: "▰", descricao: "Banco registrado no OpenStreetMap." };
+  } catch { /* ausência do serviço não impede abrir a parada */ }
+  return { tipo: "simples", rotulo: "Ponto simples", icone: "●", descricao: "Sem abrigo confirmado nos dados abertos." };
 }
 
 const idsParada = new Map();
@@ -534,6 +558,7 @@ const ROTAS = [
     return { id, nome: q.nome, lat: num(q.lat), lon: num(q.lon), dist_m: null };
   }],
   [/^\/api\/paradas\/imagem$/, async (_, q) => imagemParada(num(q.lat), num(q.lon))],
+  [/^\/api\/paradas\/estrutura$/, async (_, q) => infraestruturaParada(q.nome ?? "", num(q.lat), num(q.lon))],
   [/^\/api\/paradas\/([^/]+)\/chegadas$/, async ([, id]) => {
     const refMs = Date.now();
     return (await partidas([id])).map((t) => [t, proximas(t.departures, refMs).slice(0, 3)]).filter(([, p]) => p.length)

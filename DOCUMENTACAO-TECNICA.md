@@ -2,6 +2,14 @@
 
 Documento de referência do estado do projeto verificado em **15/10/2026**.
 
+## Atualização prática v10
+
+O passageiro pode cadastrar até dois destinos frequentes com nome e endereço personalizados. Os dados ficam apenas no `localStorage` e aparecem como atalhos junto da busca. Com posição disponível, um toque abre a tela de rota e consulta `/api/rota` usando a origem atual.
+
+Ao selecionar um veículo no mapa, a aplicação mantém seu ID em foco e oferece compartilhamento nativo, cópia de link ou WhatsApp. A URL contém `linha`, `trip` e `veiculo`; ao ser aberta, restaura a linha, conecta o tempo real e centraliza o mapa no veículo enquanto ele estiver disponível no GPS.
+
+A rota `/api/paradas/estrutura` combina nomes conhecidos de terminais/estações com tags abertas do OpenStreetMap consultadas pelo Overpass. O painel diferencia integração, abrigo, banco e ponto simples, sem bloquear os demais detalhes se o serviço externo estiver indisponível.
+
 ## Atualização visual v9
 
 A tela de parada consulta `/api/paradas/imagem` por latitude e longitude. O motor tenta primeiro uma fotografia georreferenciada do Wikimedia Commons em um raio de 350 metros e usa uma imagem estática do Esri World Imagery como fallback sem chave. A interface possui esqueleto de carregamento, referência textual em caso de falha e visualização ampliada em `dialog`.

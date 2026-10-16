@@ -232,6 +232,17 @@ export class Mapa {
   centralizar(pos, zoom = 15) { this.mapa.easeTo({ center: [pos.lon, pos.lat], zoom,
     pitch: this.modo3d && zoom >= 15 ? 40 : 0, duration: reduzMovimento ? 0 : 900 }); }
 
+  /** Centraliza e mantém em destaque o veículo recebido por um link compartilhado. */
+  focarVeiculo(id) {
+    const registro = this.onibus.get(String(id));
+    if (!registro) return false;
+    this.destaque = String(id);
+    this.mapa.easeTo({ center: registro.pos, zoom: Math.max(this.mapa.getZoom(), 16.5),
+      pitch: this.modo3d ? 40 : 0, duration: reduzMovimento ? 0 : 850 });
+    this._pintarOnibus();
+    return true;
+  }
+
   enquadrar(coords) {
     if (!coords.length) return;
     const b = coords.reduce((acc, c) => acc.extend(c), new maplibregl.LngLatBounds(coords[0], coords[0]));

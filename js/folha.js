@@ -20,6 +20,20 @@ export function abrirImagemTelaCheia(src, alt, legenda = "") {
   dialogo.showModal();
 }
 
+/** Usa o compartilhamento nativo; em desktop copia o link para a área de transferência. */
+export async function compartilharTrajeto({ url, texto, whatsapp = false }) {
+  if (whatsapp) {
+    window.open(`https://wa.me/?text=${encodeURIComponent(`${texto}\n${url}`)}`, "_blank", "noopener,noreferrer");
+    return "WhatsApp aberto com o trajeto.";
+  }
+  if (navigator.share) {
+    await navigator.share({ title: "Acompanhe meu ônibus no Busão DF", text: texto, url });
+    return "Trajeto compartilhado.";
+  }
+  await navigator.clipboard.writeText(url);
+  return "Link do trajeto copiado.";
+}
+
 export class Folha {
   constructor(el, aoMudar) {
     this.el = el;

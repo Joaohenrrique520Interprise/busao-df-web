@@ -66,6 +66,7 @@ test("Busão DF: módulos e integração HTTP", { timeout: 60_000 }, async (t) =
     assert.equal(typeof motor.metadadosConforto, "function");
     assert.equal(typeof motor.tipoIntegracao, "function");
     assert.equal(typeof motor.imagemParada, "function");
+    assert.equal(typeof motor.infraestruturaParada, "function");
   });
 
   await t.test("imagem da parada usa fallback de satélite sem chave", async () => {
@@ -78,6 +79,13 @@ test("Busão DF: módulos e integração HTTP", { timeout: 60_000 }, async (t) =
       assert.match(imagem.url, /World_Imagery/);
       assert.match(imagem.url, /bbox=/);
     } finally { motor.usarHttp(anterior); }
+  });
+
+  await t.test("infraestrutura reconhece terminais sem depender da rede", async () => {
+    const { infraestruturaParada } = await import("./js/motor.js");
+    const estrutura = await infraestruturaParada("Terminal Rodoviário do Plano Piloto", -15.7939, -47.8828);
+    assert.equal(estrutura.tipo, "integracao");
+    assert.match(estrutura.rotulo, /Terminal|Integração/);
   });
 
   await t.test("normaliza acessibilidade, ar-condicionado e integrações", async () => {
